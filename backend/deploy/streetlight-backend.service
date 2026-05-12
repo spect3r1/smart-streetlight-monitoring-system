@@ -1,0 +1,18 @@
+[Unit]
+Description=Streetlight Backend API
+After=network-online.target mosquitto.service
+Wants=network-online.target
+Requires=mosquitto.service
+
+[Service]
+Type=simple
+User=streetlight
+Group=streetlight
+WorkingDirectory=/opt/streetlight-backend/backend
+EnvironmentFile=/etc/streetlight-backend.env
+ExecStart=/opt/streetlight-backend/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

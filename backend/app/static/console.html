@@ -1,0 +1,1269 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ESP32 Streetlight Console</title>
+    <style>
+      :root {
+        --bg: #f5efe5;
+        --panel: rgba(255, 255, 255, 0.92);
+        --panel-strong: rgba(255, 255, 255, 0.98);
+        --line: rgba(15, 23, 42, 0.08);
+        --text: #122033;
+        --muted: #5b6778;
+        --accent: #d97706;
+        --accent-2: #0f766e;
+        --good: #15803d;
+        --warn: #c81e3a;
+        --shadow: 0 28px 80px rgba(15, 23, 42, 0.12);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        color: var(--text);
+        font-family: "Avenir Next", "Segoe UI", "Trebuchet MS", sans-serif;
+        background:
+          radial-gradient(circle at top left, rgba(217, 119, 6, 0.18), transparent 24%),
+          radial-gradient(circle at top right, rgba(15, 118, 110, 0.16), transparent 24%),
+          linear-gradient(180deg, #fbf5ea 0%, #f0e8dd 48%, #efe7df 100%);
+      }
+
+      button,
+      input {
+        font: inherit;
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      .shell {
+        width: min(1320px, calc(100% - 24px));
+        margin: 18px auto 28px;
+      }
+
+      .masthead,
+      .row-between,
+      .toolbar,
+      .toggle-row,
+      .command-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .masthead,
+      .row-between {
+        justify-content: space-between;
+      }
+
+      .masthead {
+        align-items: flex-end;
+        gap: 18px;
+        margin-bottom: 18px;
+      }
+
+      .brand {
+        max-width: 840px;
+      }
+
+      .eyebrow {
+        margin: 0 0 10px;
+        color: var(--accent-2);
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+      }
+
+      h1,
+      h2,
+      h3,
+      h4,
+      p {
+        margin: 0;
+      }
+
+      h1 {
+        font-size: clamp(34px, 5vw, 54px);
+        line-height: 0.94;
+        letter-spacing: -0.05em;
+      }
+
+      .subtitle,
+      .note,
+      .subcopy,
+      .meta {
+        color: var(--muted);
+        line-height: 1.5;
+      }
+
+      .subtitle {
+        margin-top: 12px;
+        max-width: 760px;
+      }
+
+      .toolbar {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 28px;
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(18px);
+      }
+
+      .pane,
+      .metric-card,
+      .board-shell,
+      .auth-panel {
+        padding: 20px;
+      }
+
+      .chip,
+      .badge,
+      .button,
+      .ghost-button,
+      .toggle-button {
+        border-radius: 999px;
+      }
+
+      .chip,
+      .ghost-button,
+      .toggle-button {
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.82);
+      }
+
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 14px;
+        font-weight: 700;
+      }
+
+      .chip::before {
+        content: "";
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #94a3b8;
+      }
+
+      .chip.good::before {
+        background: var(--good);
+      }
+
+      .chip.bad::before {
+        background: var(--warn);
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 7px 11px;
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      .badge.good {
+        color: var(--good);
+        background: rgba(21, 128, 61, 0.12);
+      }
+
+      .badge.bad {
+        color: var(--warn);
+        background: rgba(200, 30, 58, 0.12);
+      }
+
+      .badge.neutral {
+        color: #334155;
+        background: rgba(15, 23, 42, 0.08);
+      }
+
+      .button,
+      .ghost-button,
+      .toggle-button {
+        padding: 11px 18px;
+        cursor: pointer;
+        transition: transform 140ms ease, opacity 140ms ease;
+      }
+
+      .button:hover,
+      .ghost-button:hover,
+      .toggle-button:hover {
+        transform: translateY(-1px);
+      }
+
+      .button:disabled,
+      .ghost-button:disabled,
+      .toggle-button:disabled {
+        opacity: 0.58;
+        cursor: default;
+        transform: none;
+      }
+
+      .button {
+        border: none;
+        color: white;
+        background: linear-gradient(135deg, var(--accent), #f59e0b);
+        box-shadow: 0 12px 28px rgba(217, 119, 6, 0.26);
+      }
+
+      .auth-panel {
+        max-width: 460px;
+        margin: 56px auto 0;
+      }
+
+      .auth-panel h2 {
+        font-size: 30px;
+        letter-spacing: -0.03em;
+        margin-bottom: 12px;
+      }
+
+      .form-grid {
+        display: grid;
+        gap: 14px;
+        margin-top: 18px;
+      }
+
+      label {
+        display: grid;
+        gap: 8px;
+        font-size: 14px;
+        font-weight: 700;
+      }
+
+      input {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: var(--panel-strong);
+        color: var(--text);
+        padding: 12px 14px;
+        outline: none;
+      }
+
+      input:focus {
+        border-color: rgba(15, 118, 110, 0.55);
+        box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
+      }
+
+      .error {
+        min-height: 20px;
+        color: var(--warn);
+        font-weight: 700;
+      }
+
+      .board-shell {
+        margin-bottom: 18px;
+      }
+
+      .board-copy {
+        margin-top: 10px;
+      }
+
+      .board-copy strong {
+        display: block;
+        margin-top: 8px;
+        font-size: 20px;
+        letter-spacing: -0.03em;
+      }
+
+      .stats-grid,
+      .led-grid,
+      .detail-grid,
+      .payload-grid {
+        display: grid;
+        gap: 14px;
+      }
+
+      .stats-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        margin-top: 18px;
+      }
+
+      .metric-card,
+      .led-card,
+      .list-item,
+      .control-card,
+      .detail-card {
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        background: rgba(255, 255, 255, 0.78);
+      }
+
+      .metric-card span,
+      .detail-card span {
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .metric-card strong,
+      .detail-card strong {
+        display: block;
+        margin-top: 12px;
+        font-size: 28px;
+        letter-spacing: -0.05em;
+      }
+
+      .workspace {
+        display: grid;
+        grid-template-columns: minmax(0, 1.15fr) minmax(320px, 400px);
+        gap: 18px;
+        align-items: start;
+      }
+
+      .column {
+        display: grid;
+        gap: 18px;
+      }
+
+      .led-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .led-card,
+      .control-card,
+      .detail-card {
+        padding: 16px;
+      }
+
+      .led-card h3,
+      .control-card h3,
+      .list-item h4 {
+        font-size: 18px;
+        letter-spacing: -0.02em;
+      }
+
+      .led-reading {
+        margin-top: 14px;
+        font-size: 30px;
+        font-weight: 800;
+        letter-spacing: -0.05em;
+      }
+
+      .led-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 12px;
+      }
+
+      .bar-track {
+        margin-top: 14px;
+        height: 10px;
+        border-radius: 999px;
+        background: rgba(15, 23, 42, 0.08);
+        overflow: hidden;
+      }
+
+      .bar-fill {
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, var(--accent), #facc15);
+      }
+
+      .detail-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .payload-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .list,
+      .control-grid {
+        display: grid;
+        gap: 12px;
+      }
+
+      .list-item {
+        padding: 16px;
+      }
+
+      .list-item p + p {
+        margin-top: 8px;
+      }
+
+      .toggle-row,
+      .command-actions {
+        flex-wrap: wrap;
+        margin-top: 14px;
+      }
+
+      .toggle-button.active-on {
+        border-color: rgba(21, 128, 61, 0.22);
+        background: rgba(21, 128, 61, 0.14);
+        color: var(--good);
+      }
+
+      .toggle-button.active-off {
+        border-color: rgba(200, 30, 58, 0.18);
+        background: rgba(200, 30, 58, 0.12);
+        color: var(--warn);
+      }
+
+      .command-feedback {
+        min-height: 20px;
+        margin-top: 14px;
+        color: var(--muted);
+      }
+
+      .empty {
+        color: var(--muted);
+      }
+
+      pre {
+        margin: 10px 0 0;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-size: 12px;
+        line-height: 1.45;
+      }
+
+      @media (max-width: 1060px) {
+        .workspace,
+        .payload-grid,
+        .stats-grid,
+        .led-grid,
+        .detail-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 760px) {
+        .masthead {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+
+        .toolbar {
+          justify-content: flex-start;
+        }
+
+        .shell {
+          width: min(100%, calc(100% - 16px));
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <header class="masthead">
+        <div class="brand">
+          <p class="eyebrow">ESP32 Street Light</p>
+          <h1>Single board telemetry and LED control</h1>
+          <p class="subtitle">
+            This portal is focused on one ESP32 board. It reads the latest LDR telemetry, shows whether each light is
+            working, and sends retained target states back to the board over MQTT.
+          </p>
+        </div>
+        <div class="toolbar">
+          <span id="apiState" class="chip bad">API offline</span>
+          <span id="mqttState" class="chip bad">MQTT offline</span>
+          <button id="refreshButton" class="ghost-button hidden" type="button">Refresh</button>
+          <button id="logoutButton" class="ghost-button hidden" type="button">Sign out</button>
+        </div>
+      </header>
+
+      <main>
+        <section id="loginPanel" class="panel auth-panel">
+          <h2>Sign in to the ESP32 console</h2>
+          <p class="note">Use the backend admin username and password to open the board portal.</p>
+          <form id="loginForm" class="form-grid">
+            <label>
+              Username
+              <input id="usernameInput" type="text" autocomplete="username" required />
+            </label>
+            <label>
+              Password
+              <input id="passwordInput" type="password" autocomplete="current-password" required />
+            </label>
+            <div id="loginError" class="error"></div>
+            <button id="loginButton" class="button" type="submit">Open portal</button>
+          </form>
+        </section>
+
+        <section id="appPanel" class="hidden">
+          <section class="panel board-shell">
+            <div class="row-between">
+              <div>
+                <p class="note">Bound board</p>
+                <div class="board-copy">
+                  <strong id="boardIdValue">Waiting for esp32-01</strong>
+                  <p id="boardHint" class="subtitle">The portal will attach to <code>esp32-01</code> as soon as telemetry arrives.</p>
+                </div>
+              </div>
+              <span id="boardHealth" class="badge neutral">Waiting</span>
+            </div>
+            <div class="stats-grid">
+              <article class="metric-card">
+                <span>Last seen</span>
+                <strong id="lastSeenValue">--</strong>
+              </article>
+              <article class="metric-card">
+                <span>Working LEDs</span>
+                <strong id="workingCountValue">--</strong>
+              </article>
+              <article class="metric-card">
+                <span>Average LDR</span>
+                <strong id="averageLdrValue">--</strong>
+              </article>
+              <article class="metric-card">
+                <span>Last command</span>
+                <strong id="lastCommandValue">--</strong>
+              </article>
+            </div>
+          </section>
+
+          <section class="workspace">
+            <section class="column">
+              <section class="panel pane">
+                <div class="row-between">
+                  <h2>Live LED telemetry</h2>
+                  <span class="badge neutral">GPIO25 / GPIO26 / GPIO27</span>
+                </div>
+                <div class="led-grid" style="margin-top: 18px">
+                  <article class="led-card">
+                    <h3>LED 1</h3>
+                    <p class="subcopy">LDR on GPIO34</p>
+                    <div id="led1Reading" class="led-reading">--</div>
+                    <div class="led-meta">
+                      <span id="led1Working" class="badge neutral">Working --</span>
+                      <span id="led1Expected" class="badge neutral">Expected --</span>
+                      <span id="led1Fault" class="badge neutral">Clear</span>
+                    </div>
+                    <div class="bar-track"><div id="led1Bar" class="bar-fill" style="width: 0%"></div></div>
+                  </article>
+
+                  <article class="led-card">
+                    <h3>LED 2</h3>
+                    <p class="subcopy">LDR on GPIO35</p>
+                    <div id="led2Reading" class="led-reading">--</div>
+                    <div class="led-meta">
+                      <span id="led2Working" class="badge neutral">Working --</span>
+                      <span id="led2Expected" class="badge neutral">Expected --</span>
+                      <span id="led2Fault" class="badge neutral">Clear</span>
+                    </div>
+                    <div class="bar-track"><div id="led2Bar" class="bar-fill" style="width: 0%"></div></div>
+                  </article>
+
+                  <article class="led-card">
+                    <h3>LED 3</h3>
+                    <p class="subcopy">LDR on GPIO32</p>
+                    <div id="led3Reading" class="led-reading">--</div>
+                    <div class="led-meta">
+                      <span id="led3Working" class="badge neutral">Working --</span>
+                      <span id="led3Expected" class="badge neutral">Expected --</span>
+                      <span id="led3Fault" class="badge neutral">Clear</span>
+                    </div>
+                    <div class="bar-track"><div id="led3Bar" class="bar-fill" style="width: 0%"></div></div>
+                  </article>
+                </div>
+              </section>
+
+              <section class="panel pane">
+                <div class="row-between">
+                  <h2>Board details</h2>
+                  <span id="faultStateBadge" class="badge neutral">No fault data</span>
+                </div>
+                <div class="detail-grid" style="margin-top: 18px">
+                  <article class="detail-card">
+                    <span>Fault rule</span>
+                    <strong>Expected on + not working</strong>
+                  </article>
+                  <article class="detail-card">
+                    <span>Preferred device ID</span>
+                    <strong>esp32-01</strong>
+                  </article>
+                </div>
+              </section>
+
+              <section class="panel pane">
+                <h2>Recent telemetry</h2>
+                <div id="telemetryList" class="list" style="margin-top: 18px"></div>
+              </section>
+
+              <section class="panel pane">
+                <h2>Latest payloads</h2>
+                <div class="payload-grid" style="margin-top: 18px">
+                  <div class="list-item">
+                    <h4>Telemetry payload</h4>
+                    <pre id="telemetryPayload">--</pre>
+                  </div>
+                  <div class="list-item">
+                    <h4>Status payload</h4>
+                    <pre id="statusPayload">--</pre>
+                  </div>
+                </div>
+              </section>
+            </section>
+
+            <aside class="column">
+              <section class="panel pane">
+                <div class="row-between">
+                  <div>
+                    <h2>LED command panel</h2>
+                    <p class="note">Send retained MQTT commands to the ESP32 board.</p>
+                  </div>
+                  <span id="commandState" class="badge neutral">Idle</span>
+                </div>
+                <div class="control-grid" style="margin-top: 18px">
+                  <article class="control-card">
+                    <h3>LED 1 target</h3>
+                    <p class="meta">GPIO25</p>
+                    <div class="toggle-row">
+                      <button id="led1OffButton" class="toggle-button" type="button">OFF</button>
+                      <button id="led1OnButton" class="toggle-button" type="button">ON</button>
+                    </div>
+                  </article>
+
+                  <article class="control-card">
+                    <h3>LED 2 target</h3>
+                    <p class="meta">GPIO26</p>
+                    <div class="toggle-row">
+                      <button id="led2OffButton" class="toggle-button" type="button">OFF</button>
+                      <button id="led2OnButton" class="toggle-button" type="button">ON</button>
+                    </div>
+                  </article>
+
+                  <article class="control-card">
+                    <h3>LED 3 target</h3>
+                    <p class="meta">GPIO27</p>
+                    <div class="toggle-row">
+                      <button id="led3OffButton" class="toggle-button" type="button">OFF</button>
+                      <button id="led3OnButton" class="toggle-button" type="button">ON</button>
+                    </div>
+                  </article>
+                </div>
+                <article class="control-card" style="margin-top: 14px">
+                  <div class="row-between">
+                    <div>
+                      <h3>Auto intensity control</h3>
+                      <p class="meta">When enabled, the backend turns all LEDs ON when ambient LDR is at or below the chosen value, and OFF when it is above it.</p>
+                    </div>
+                    <span id="autoLightState" class="badge neutral">Auto OFF</span>
+                  </div>
+                  <div class="toggle-row">
+                    <button id="autoLightOffButton" class="toggle-button" type="button">Auto OFF</button>
+                    <button id="autoLightOnButton" class="toggle-button" type="button">Auto ON</button>
+                  </div>
+                  <label style="margin-top: 14px">
+                    Desired light intensity / LDR threshold
+                    <input id="autoLightThresholdInput" type="number" min="0" max="4095" step="1" placeholder="Example: 1800" />
+                  </label>
+                  <p class="meta">Lower LDR usually means darker. Use 0–4095. Example: 1800 means lights turn ON when ambient_ldr ≤ 1800.</p>
+                </article>
+                <div class="command-actions">
+                  <button id="allOffButton" class="ghost-button" type="button">All off</button>
+                  <button id="allOnButton" class="ghost-button" type="button">All on</button>
+                  <button id="sendCommandButton" class="button" type="button">Send to ESP32</button>
+                </div>
+                <p id="commandFeedback" class="command-feedback">Waiting for the board before sending commands.</p>
+              </section>
+
+              <section class="panel pane">
+                <div class="row-between">
+                  <h2>Recent commands</h2>
+                  <span id="commandCount" class="badge neutral">0 commands</span>
+                </div>
+                <div id="commandList" class="list" style="margin-top: 18px"></div>
+              </section>
+            </aside>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <script>
+      const PREFERRED_DEVICE_ID = "esp32-01";
+
+      const state = {
+        token: localStorage.getItem("streetlight.console.token") || "",
+        boardId: null,
+        board: null,
+        telemetry: [],
+        commands: [],
+        commandDraft: {
+          led1_expected: false,
+          led2_expected: false,
+          led3_expected: false,
+          auto_lights_enabled: false,
+          auto_light_threshold: 1800,
+        },
+        commandDirty: false,
+        commandBusy: false,
+        commandFeedback: "Waiting for the board before sending commands.",
+        healthTimer: null,
+        refreshTimer: null,
+      };
+
+      const el = {
+        apiState: document.getElementById("apiState"),
+        mqttState: document.getElementById("mqttState"),
+        loginPanel: document.getElementById("loginPanel"),
+        appPanel: document.getElementById("appPanel"),
+        loginForm: document.getElementById("loginForm"),
+        loginButton: document.getElementById("loginButton"),
+        loginError: document.getElementById("loginError"),
+        usernameInput: document.getElementById("usernameInput"),
+        passwordInput: document.getElementById("passwordInput"),
+        refreshButton: document.getElementById("refreshButton"),
+        logoutButton: document.getElementById("logoutButton"),
+        boardIdValue: document.getElementById("boardIdValue"),
+        boardHint: document.getElementById("boardHint"),
+        boardHealth: document.getElementById("boardHealth"),
+        lastSeenValue: document.getElementById("lastSeenValue"),
+        workingCountValue: document.getElementById("workingCountValue"),
+        averageLdrValue: document.getElementById("averageLdrValue"),
+        lastCommandValue: document.getElementById("lastCommandValue"),
+        faultStateBadge: document.getElementById("faultStateBadge"),
+        led1Reading: document.getElementById("led1Reading"),
+        led2Reading: document.getElementById("led2Reading"),
+        led3Reading: document.getElementById("led3Reading"),
+        led1Working: document.getElementById("led1Working"),
+        led2Working: document.getElementById("led2Working"),
+        led3Working: document.getElementById("led3Working"),
+        led1Expected: document.getElementById("led1Expected"),
+        led2Expected: document.getElementById("led2Expected"),
+        led3Expected: document.getElementById("led3Expected"),
+        led1Fault: document.getElementById("led1Fault"),
+        led2Fault: document.getElementById("led2Fault"),
+        led3Fault: document.getElementById("led3Fault"),
+        led1Bar: document.getElementById("led1Bar"),
+        led2Bar: document.getElementById("led2Bar"),
+        led3Bar: document.getElementById("led3Bar"),
+        telemetryList: document.getElementById("telemetryList"),
+        telemetryPayload: document.getElementById("telemetryPayload"),
+        statusPayload: document.getElementById("statusPayload"),
+        commandState: document.getElementById("commandState"),
+        commandFeedback: document.getElementById("commandFeedback"),
+        commandCount: document.getElementById("commandCount"),
+        commandList: document.getElementById("commandList"),
+        led1OffButton: document.getElementById("led1OffButton"),
+        led1OnButton: document.getElementById("led1OnButton"),
+        led2OffButton: document.getElementById("led2OffButton"),
+        led2OnButton: document.getElementById("led2OnButton"),
+        led3OffButton: document.getElementById("led3OffButton"),
+        led3OnButton: document.getElementById("led3OnButton"),
+        autoLightState: document.getElementById("autoLightState"),
+        autoLightOffButton: document.getElementById("autoLightOffButton"),
+        autoLightOnButton: document.getElementById("autoLightOnButton"),
+        autoLightThresholdInput: document.getElementById("autoLightThresholdInput"),
+        allOffButton: document.getElementById("allOffButton"),
+        allOnButton: document.getElementById("allOnButton"),
+        sendCommandButton: document.getElementById("sendCommandButton"),
+      };
+
+      function setChip(target, label, good) {
+        target.textContent = label;
+        target.className = "chip " + (good ? "good" : "bad");
+      }
+
+      function setBadge(target, label, tone) {
+        target.textContent = label;
+        target.className = "badge " + tone;
+      }
+
+      function escapeHtml(value) {
+        return String(value)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#39;");
+      }
+
+      function formatDate(value) {
+        if (!value) {
+          return "--";
+        }
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) {
+          return value;
+        }
+        return new Intl.DateTimeFormat(undefined, {
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        }).format(date);
+      }
+
+      function pretty(value) {
+        return value ? JSON.stringify(value, null, 2) : "--";
+      }
+
+      function percentFromReading(value) {
+        if (typeof value !== "number") {
+          return 0;
+        }
+        return Math.max(0, Math.min(100, Math.round((value / 4095) * 100)));
+      }
+
+      function boolLabel(value) {
+        if (value === true || value === 1) {
+          return "ON";
+        }
+        if (value === false || value === 0) {
+          return "OFF";
+        }
+        return "--";
+      }
+
+      function boolStateLabel(value) {
+        if (value === true) {
+          return ["Working yes", "good"];
+        }
+        if (value === false) {
+          return ["Working no", "bad"];
+        }
+        return ["Working --", "neutral"];
+      }
+
+      function commandTone(status) {
+        if (typeof status !== "string") {
+          return "neutral";
+        }
+        const normalized = status.toLowerCase();
+        if (normalized === "applied" || normalized === "acknowledged" || normalized === "sent") {
+          return normalized === "sent" ? "neutral" : "good";
+        }
+        if (normalized === "failed" || normalized === "error") {
+          return "bad";
+        }
+        return "neutral";
+      }
+
+      function apiHeaders(options = {}) {
+        const headers = new Headers(options.headers || {});
+        if (state.token) {
+          headers.set("Authorization", "Bearer " + state.token);
+        }
+        if (options.body && !headers.has("Content-Type")) {
+          headers.set("Content-Type", "application/json");
+        }
+        return headers;
+      }
+
+      async function apiRequest(path, options = {}) {
+        const response = await fetch(path, {...options, headers: apiHeaders(options)});
+        if (response.status === 401) {
+          logout();
+          throw new Error("Session expired. Sign in again.");
+        }
+        if (!response.ok) {
+          let detail = response.statusText;
+          try {
+            const payload = await response.json();
+            if (payload && typeof payload.detail === "string") {
+              detail = payload.detail;
+            }
+          } catch (error) {
+            // ignore
+          }
+          throw new Error(detail);
+        }
+        return response.json();
+      }
+
+      async function probeHealth() {
+        try {
+          const response = await fetch("/health");
+          const payload = await response.json();
+          setChip(el.apiState, "API online", true);
+          setChip(el.mqttState, payload.mqtt_connected ? "MQTT online" : "MQTT offline", payload.mqtt_connected);
+        } catch (error) {
+          setChip(el.apiState, "API offline", false);
+          setChip(el.mqttState, "MQTT offline", false);
+        }
+      }
+
+      async function login(event) {
+        event.preventDefault();
+        el.loginError.textContent = "";
+        el.loginButton.disabled = true;
+        try {
+          const payload = await apiRequest("/api/v1/auth/login", {
+            method: "POST",
+            body: JSON.stringify({
+              username: el.usernameInput.value.trim(),
+              password: el.passwordInput.value,
+            }),
+          });
+          state.token = payload.access_token;
+          localStorage.setItem("streetlight.console.token", state.token);
+          el.passwordInput.value = "";
+          await initializeConsole();
+        } catch (error) {
+          el.loginError.textContent = error.message;
+        } finally {
+          el.loginButton.disabled = false;
+        }
+      }
+
+      function logout() {
+        state.token = "";
+        state.boardId = null;
+        state.board = null;
+        state.telemetry = [];
+        state.commands = [];
+        state.commandBusy = false;
+        state.commandDirty = false;
+        state.commandFeedback = "Waiting for the board before sending commands.";
+        clearIntervals();
+        localStorage.removeItem("streetlight.console.token");
+        renderLoggedOut();
+      }
+
+      function clearIntervals() {
+        if (state.healthTimer) {
+          clearInterval(state.healthTimer);
+          state.healthTimer = null;
+        }
+        if (state.refreshTimer) {
+          clearInterval(state.refreshTimer);
+          state.refreshTimer = null;
+        }
+      }
+
+      function renderLoggedOut() {
+        el.loginPanel.classList.remove("hidden");
+        el.appPanel.classList.add("hidden");
+        el.refreshButton.classList.add("hidden");
+        el.logoutButton.classList.add("hidden");
+      }
+
+      async function initializeConsole() {
+        await probeHealth();
+        await apiRequest("/api/v1/me");
+        el.loginPanel.classList.add("hidden");
+        el.appPanel.classList.remove("hidden");
+        el.refreshButton.classList.remove("hidden");
+        el.logoutButton.classList.remove("hidden");
+        await refreshBoard();
+        clearIntervals();
+        state.healthTimer = setInterval(probeHealth, 15000);
+        state.refreshTimer = setInterval(refreshBoard, 5000);
+      }
+
+      async function resolveBoardId() {
+        const devices = await apiRequest("/api/v1/devices");
+        if (!Array.isArray(devices) || !devices.length) {
+          return null;
+        }
+        const preferred = devices.find((device) => device.id === PREFERRED_DEVICE_ID);
+        return (preferred || devices[0]).id;
+      }
+
+      async function refreshBoard() {
+        try {
+          const boardId = await resolveBoardId();
+          state.boardId = boardId;
+          if (!boardId) {
+            state.board = null;
+            state.telemetry = [];
+            state.commands = [];
+            renderBoard();
+            return;
+          }
+
+          const [board, telemetry, commands] = await Promise.all([
+            apiRequest("/api/v1/devices/" + boardId),
+            apiRequest("/api/v1/devices/" + boardId + "/telemetry?limit=12"),
+            apiRequest("/api/v1/devices/" + boardId + "/commands?limit=12"),
+          ]);
+
+          state.board = board;
+          state.telemetry = telemetry;
+          state.commands = commands;
+          if (!state.commandDirty) {
+            state.commandDraft = {
+              led1_expected: board.led1_expected === true,
+              led2_expected: board.led2_expected === true,
+              led3_expected: board.led3_expected === true,
+              auto_lights_enabled: board.auto_lights_enabled === true,
+              auto_light_threshold: Number.isInteger(board.auto_light_threshold) ? board.auto_light_threshold : 1800,
+            };
+          }
+          if (!state.commandBusy && !state.commandDirty) {
+            state.commandFeedback = "Board connected. Adjust the LED targets and send them to the ESP32.";
+          }
+          renderBoard();
+        } catch (error) {
+          if (error.message !== "Session expired. Sign in again.") {
+            state.commandFeedback = error.message;
+            renderBoard();
+          }
+        }
+      }
+
+      function renderBoard() {
+        const board = state.board;
+        if (!board) {
+          el.boardIdValue.textContent = "Waiting for " + PREFERRED_DEVICE_ID;
+          el.boardHint.innerHTML = 'The portal will attach to <code>esp32-01</code> as soon as telemetry arrives.';
+          setBadge(el.boardHealth, "Waiting", "neutral");
+          setBadge(el.faultStateBadge, "No fault data", "neutral");
+          el.lastSeenValue.textContent = "--";
+          el.workingCountValue.textContent = "--";
+          el.averageLdrValue.textContent = "--";
+          el.lastCommandValue.textContent = "--";
+          for (const prefix of ["led1", "led2", "led3"]) {
+            document.getElementById(prefix + "Reading").textContent = "--";
+            setBadge(document.getElementById(prefix + "Working"), "Working --", "neutral");
+            setBadge(document.getElementById(prefix + "Expected"), "Expected --", "neutral");
+            setBadge(document.getElementById(prefix + "Fault"), "Clear", "neutral");
+            document.getElementById(prefix + "Bar").style.width = "0%";
+          }
+          el.telemetryList.innerHTML = '<p class="empty">No telemetry has been received from the ESP32 yet.</p>';
+          el.commandList.innerHTML = '<p class="empty">No commands have been sent yet.</p>';
+          el.commandCount.textContent = "0 commands";
+          el.telemetryPayload.textContent = "--";
+          el.statusPayload.textContent = "--";
+          renderCommandControls();
+          return;
+        }
+
+        const latestFault = board.last_fault_payload || {};
+        const faultChannels = new Set(
+          Array.isArray(latestFault.faulty_leds) ? latestFault.faulty_leds.map((entry) => entry.channel) : []
+        );
+        const workingCount = [board.led1_working, board.led2_working, board.led3_working].filter((value) => value === true).length;
+        const readings = [board.led1_reading, board.led2_reading, board.led3_reading].filter((value) => typeof value === "number");
+        const averageLdr = readings.length ? Math.round(readings.reduce((sum, value) => sum + value, 0) / readings.length) : "--";
+        const latestCommand = state.commands[0];
+
+        el.boardIdValue.textContent = board.id;
+        el.boardHint.textContent = "ESP32 board ready. Telemetry and command data below update automatically every 5 seconds.";
+        setBadge(el.boardHealth, board.has_fault ? "Fault active" : "Healthy", board.has_fault ? "bad" : "good");
+        setBadge(el.faultStateBadge, board.has_fault ? "Fault active" : "Fault clear", board.has_fault ? "bad" : "good");
+        el.lastSeenValue.textContent = formatDate(board.last_seen_at);
+        el.workingCountValue.textContent = workingCount + " / 3";
+        el.averageLdrValue.textContent = averageLdr;
+        el.lastCommandValue.textContent = latestCommand ? formatDate(latestCommand.created_at) : "--";
+
+        renderLedCard("led1", board.led1_reading, board.led1_working, board.led1_expected, faultChannels.has("led1"));
+        renderLedCard("led2", board.led2_reading, board.led2_working, board.led2_expected, faultChannels.has("led2"));
+        renderLedCard("led3", board.led3_reading, board.led3_working, board.led3_expected, faultChannels.has("led3"));
+
+        el.telemetryPayload.textContent = pretty(board.last_telemetry_payload);
+        el.statusPayload.textContent = pretty(board.last_status_payload);
+        renderTelemetryList();
+        renderCommandList();
+        renderCommandControls();
+      }
+
+      function renderLedCard(prefix, reading, working, expected, faultActive) {
+        document.getElementById(prefix + "Reading").textContent = reading ?? "--";
+        const [workingLabel, workingTone] = boolStateLabel(working);
+        setBadge(document.getElementById(prefix + "Working"), workingLabel, workingTone);
+        setBadge(
+          document.getElementById(prefix + "Expected"),
+          "Expected " + boolLabel(expected),
+          expected == null ? "neutral" : expected ? "good" : "neutral"
+        );
+        setBadge(document.getElementById(prefix + "Fault"), faultActive ? "Fault" : "Clear", faultActive ? "bad" : "good");
+        document.getElementById(prefix + "Bar").style.width = percentFromReading(reading) + "%";
+      }
+
+      function renderTelemetryList() {
+        if (!state.telemetry.length) {
+          el.telemetryList.innerHTML = '<p class="empty">No telemetry has been received from the ESP32 yet.</p>';
+          return;
+        }
+        el.telemetryList.innerHTML = state.telemetry
+          .map((entry) => {
+            return `
+              <article class="list-item">
+                <div class="row-between">
+                  <h4>${escapeHtml(formatDate(entry.received_at))}</h4>
+                  <span class="badge neutral">LDR ${escapeHtml(String(entry.ldr1 ?? "--"))} / ${escapeHtml(String(entry.ldr2 ?? "--"))} / ${escapeHtml(String(entry.ldr3 ?? "--"))}</span>
+                </div>
+                <p class="meta">
+                  LED1 ${escapeHtml(boolLabel(entry.led1_working))} expected ${escapeHtml(boolLabel(entry.led1_expected))} ·
+                  LED2 ${escapeHtml(boolLabel(entry.led2_working))} expected ${escapeHtml(boolLabel(entry.led2_expected))} ·
+                  LED3 ${escapeHtml(boolLabel(entry.led3_working))} expected ${escapeHtml(boolLabel(entry.led3_expected))}
+                </p>
+              </article>
+            `;
+          })
+          .join("");
+      }
+
+      function renderCommandList() {
+        el.commandCount.textContent = state.commands.length + " commands";
+        if (!state.commands.length) {
+          el.commandList.innerHTML = '<p class="empty">No commands have been sent yet.</p>';
+          return;
+        }
+        el.commandList.innerHTML = state.commands
+          .map((entry) => {
+            const raw = entry.raw_payload || {};
+            const ackText = entry.acknowledged_at ? "Ack " + formatDate(entry.acknowledged_at) : "Waiting for ESP32 status";
+            return `
+              <article class="list-item">
+                <div class="row-between">
+                  <h4>${escapeHtml(formatDate(entry.created_at))}</h4>
+                  <span class="badge ${commandTone(entry.status)}">${escapeHtml(entry.status)}</span>
+                </div>
+                <p class="meta">
+                  Target ${escapeHtml(String(raw.led1_expected ?? "--"))} / ${escapeHtml(String(raw.led2_expected ?? "--"))} /
+                  ${escapeHtml(String(raw.led3_expected ?? "--"))} · Auto ${escapeHtml(boolLabel(raw.auto_lights_enabled))} @ ${escapeHtml(String(raw.auto_light_threshold ?? "--"))}
+                </p>
+                <p class="meta">${escapeHtml(ackText)} · ${escapeHtml(entry.command_id.slice(0, 8))}</p>
+              </article>
+            `;
+          })
+          .join("");
+      }
+
+      function renderCommandControls() {
+        const hasBoard = Boolean(state.board);
+        const disabled = !hasBoard || state.commandBusy;
+        const latestCommand = state.commands[0];
+
+        setToggleButtons(el.led1OffButton, el.led1OnButton, state.commandDraft.led1_expected, disabled);
+        setToggleButtons(el.led2OffButton, el.led2OnButton, state.commandDraft.led2_expected, disabled);
+        setToggleButtons(el.led3OffButton, el.led3OnButton, state.commandDraft.led3_expected, disabled);
+        setToggleButtons(el.autoLightOffButton, el.autoLightOnButton, state.commandDraft.auto_lights_enabled, disabled);
+        setBadge(el.autoLightState, state.commandDraft.auto_lights_enabled ? "Auto ON" : "Auto OFF", state.commandDraft.auto_lights_enabled ? "good" : "neutral");
+        el.autoLightThresholdInput.disabled = disabled;
+        el.autoLightThresholdInput.value = state.commandDraft.auto_light_threshold ?? "";
+        el.allOffButton.disabled = disabled;
+        el.allOnButton.disabled = disabled;
+        el.sendCommandButton.disabled = disabled;
+
+        if (!hasBoard) {
+          setBadge(el.commandState, "Waiting", "neutral");
+          el.commandFeedback.textContent = state.commandFeedback;
+          return;
+        }
+
+        if (state.commandBusy) {
+          setBadge(el.commandState, "Sending", "neutral");
+        } else if (latestCommand) {
+          setBadge(el.commandState, latestCommand.status, commandTone(latestCommand.status));
+        } else {
+          setBadge(el.commandState, "Ready", "good");
+        }
+        el.commandFeedback.textContent = state.commandFeedback;
+      }
+
+      function setToggleButtons(offButton, onButton, isOn, disabled) {
+        offButton.className = "toggle-button" + (isOn ? "" : " active-off");
+        onButton.className = "toggle-button" + (isOn ? " active-on" : "");
+        offButton.disabled = disabled;
+        onButton.disabled = disabled;
+      }
+
+      function updateDraft(channel, value) {
+        state.commandDraft[channel] = value;
+        state.commandDirty = true;
+        state.commandFeedback = "Draft updated. Send it to the ESP32 when ready.";
+        renderCommandControls();
+      }
+
+      function updateAllDraft(value) {
+        state.commandDraft = {
+          ...state.commandDraft,
+          led1_expected: value,
+          led2_expected: value,
+          led3_expected: value,
+        };
+        state.commandDirty = true;
+        state.commandFeedback = "Draft updated. Send it to the ESP32 when ready.";
+        renderCommandControls();
+      }
+
+      function updateAutoLightEnabled(value) {
+        state.commandDraft.auto_lights_enabled = value;
+        state.commandDirty = true;
+        state.commandFeedback = value
+          ? "Auto intensity enabled in draft. Choose the threshold and send it to the ESP32/backend."
+          : "Auto intensity disabled in draft. Send it to apply.";
+        renderCommandControls();
+      }
+
+      function updateAutoLightThreshold(value) {
+        const parsed = Number.parseInt(value, 10);
+        if (Number.isNaN(parsed)) {
+          state.commandDraft.auto_light_threshold = null;
+        } else {
+          state.commandDraft.auto_light_threshold = Math.max(0, Math.min(4095, parsed));
+        }
+        state.commandDirty = true;
+        state.commandFeedback = "Auto intensity threshold updated. Send it to apply.";
+        renderCommandControls();
+      }
+
+      async function publishCommand() {
+        if (!state.boardId || state.commandBusy) {
+          return;
+        }
+        state.commandBusy = true;
+        state.commandFeedback = "Sending retained MQTT command to the board...";
+        renderCommandControls();
+        try {
+          const response = await apiRequest("/api/v1/devices/" + state.boardId + "/commands", {
+            method: "POST",
+            body: JSON.stringify(state.commandDraft),
+          });
+          state.commandBusy = false;
+          state.commandDirty = false;
+          state.commandFeedback = "Command " + response.command_id.slice(0, 8) + " sent. Waiting for ESP32 status.";
+          await refreshBoard();
+        } catch (error) {
+          state.commandBusy = false;
+          state.commandFeedback = error.message;
+          renderCommandControls();
+        }
+      }
+
+      el.loginForm.addEventListener("submit", login);
+      el.logoutButton.addEventListener("click", logout);
+      el.refreshButton.addEventListener("click", refreshBoard);
+      el.led1OffButton.addEventListener("click", () => updateDraft("led1_expected", false));
+      el.led1OnButton.addEventListener("click", () => updateDraft("led1_expected", true));
+      el.led2OffButton.addEventListener("click", () => updateDraft("led2_expected", false));
+      el.led2OnButton.addEventListener("click", () => updateDraft("led2_expected", true));
+      el.led3OffButton.addEventListener("click", () => updateDraft("led3_expected", false));
+      el.led3OnButton.addEventListener("click", () => updateDraft("led3_expected", true));
+      el.autoLightOffButton.addEventListener("click", () => updateAutoLightEnabled(false));
+      el.autoLightOnButton.addEventListener("click", () => updateAutoLightEnabled(true));
+      el.autoLightThresholdInput.addEventListener("change", (event) => updateAutoLightThreshold(event.target.value));
+      el.allOffButton.addEventListener("click", () => updateAllDraft(false));
+      el.allOnButton.addEventListener("click", () => updateAllDraft(true));
+      el.sendCommandButton.addEventListener("click", publishCommand);
+
+      (async function bootstrap() {
+        await probeHealth();
+        renderLoggedOut();
+        if (state.token) {
+          try {
+            await initializeConsole();
+          } catch (error) {
+            logout();
+          }
+        }
+      })();
+    </script>
+  </body>
+</html>

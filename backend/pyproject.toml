@@ -1,0 +1,29 @@
+[build-system]
+requires = ["hatchling>=1.25.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "streetlight-backend"
+version = "0.1.0"
+description = "Backend API and MQTT bridge for the street light monitoring platform."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.115.0,<1.0.0",
+  "uvicorn[standard]>=0.30.0,<1.0.0",
+  "sqlalchemy>=2.0.32,<3.0.0",
+  "pydantic-settings>=2.4.0,<3.0.0",
+  "passlib>=1.7.4,<2.0.0",
+  "PyJWT>=2.9.0,<3.0.0",
+  "paho-mqtt>=2.1.0,<3.0.0",
+  "python-multipart>=0.0.9,<1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "httpx>=0.27.0,<1.0.0",
+  "pytest>=8.3.0,<9.0.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]

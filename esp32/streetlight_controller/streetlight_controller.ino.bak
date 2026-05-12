@@ -1,0 +1,232 @@
+#include <ArduinoJson.h>
+#include <PubSubClient.h>
+#include <WiFi.h>
+#include <time.h>
+
+static const char *WIFI_SSID = "adoola";
+static const char *WIFI_PASSWORD = "8262b5af"; //8262b5af
+
+static const char *MQTT_HOST = "104.248.227.238";
+static const uint16_t MQTT_PORT = 1883;
+static const char *MQTT_USERNAME = "streetlight";
+static const char *MQTT_PASSWORD = "y9y2AtrPx2NhMNQKBHYdAR8q";
+
+static const char *DEVICE_ID = "esp32-01";
+
+static const uint8_t LED1_PIN = 25;
+static const uint8_t LED2_PIN = 26;
+static const uint8_t LED3_PIN = 27;
+
+static const uint8_t LDR1_PIN = 34;
+static const uint8_t LDR2_PIN = 35;
+static const uint8_t LDR3_PIN = 32;
+
+static const uint8_t LED1_WORKING_PIN = 18;
+static const uint8_t LED2_WORKING_PIN = 19;
+static const uint8_t LED3_WORKING_PIN = 23;
+
+static const unsigned long TELEMETRY_INTERVAL_MS = 5000;
+static const unsigned long WIFI_RETRY_DELAY_MS = 3000;
+static const unsigned long MQTT_RETRY_DELAY_MS = 3000;
+
+WiFiClient wifiClient;
+PubSubClient mqttClient(wifiClient);
+
+bool led1Expected = false;
+bool led2Expected = false;
+bool led3Expected = false;
+
+unsigned long lastTelemetryAt = 0;
+unsigned long lastWifiRetryAt = 0;
+unsigned long lastMqttRetryAt = 0;
+
+char telemetryTopic[64];
+char commandTopic[64];
+char statusTopic[64];
+
+void applyExpectedStates(bool led1, bool led2, bool led3) {
+  led1Expected = led1;
+  led2Expected = led2;
+  led3Expected = led3;
+
+  digitalWrite(LED1_PIN, led1Expected ? HIGH : LOW);
+  digitalWrite(LED2_PIN, led2Expected ? HIGH : LOW);
+  digitalWrite(LED3_PIN, led3Expected ? HIGH : LOW);
+}
+
+bool hasValidTime() {
+  return time(nullptr) > 1700000000;
+}
+
+void addTimestamp(JsonDocument &doc) {
+  if (!hasValidTime()) {
+    return;
+  }
+
+  time_t now = time(nullptr);
+  struct tm timeInfo;
+  gmtime_r(&now, &timeInfo);
+
+  char buffer[32];
+  strftime(buffer, sizeof(buffer), "%Y-%m-%dT%H:%M:%SZ", &timeInfo);
+  doc["ts"] = buffer;
+}
+
+void publishStatus(const char *status, const char *commandId = nullptr) {
+  StaticJsonDocument<320> doc;
+  doc["device_id"] = DEVICE_ID;
+  doc["status"] = status;
+  doc["led1_expected"] = led1Expected ? 1 : 0;
+  doc["led2_expected"] = led2Expected ? 1 : 0;
+  doc["led3_expected"] = led3Expected ? 1 : 0;
+  if (commandId != nullptr && commandId[0] != '\0') {
+    doc["command_id"] = commandId;
+  }
+  addTimestamp(doc);
+
+  char payload[320];
+  size_t length = serializeJson(doc, payload, sizeof(payload));
+  mqttClient.publish(statusTopic, reinterpret_cast<const uint8_t *>(payload), static_cast<unsigned int>(length), false);
+}
+
+void publishTelemetry() {
+  StaticJsonDocument<384> doc;
+  doc["device_id"] = DEVICE_ID;
+  doc["ldr1"] = analogRead(LDR1_PIN);
+  doc["ldr2"] = analogRead(LDR2_PIN);
+  doc["ldr3"] = analogRead(LDR3_PIN);
+  doc["led1_working"] = digitalRead(LED1_WORKING_PIN) == HIGH ? 1 : 0;
+  doc["led2_working"] = digitalRead(LED2_WORKING_PIN) == HIGH ? 1 : 0;
+  doc["led3_working"] = digitalRead(LED3_WORKING_PIN) == HIGH ? 1 : 0;
+  doc["led1_expected"] = led1Expected ? 1 : 0;
+  doc["led2_expected"] = led2Expected ? 1 : 0;
+  doc["led3_expected"] = led3Expected ? 1 : 0;
+  addTimestamp(doc);
+
+  char payload[384];
+  size_t length = serializeJson(doc, payload, sizeof(payload));
+  mqttClient.publish(telemetryTopic,  reinterpret_cast<const uint8_t *> (payload), static_cast<unsigned int>(length), false);
+}
+
+void handleCommand(const byte *payloadBytes, unsigned int length) {
+  StaticJsonDocument<384> doc;
+  DeserializationError error = deserializeJson(doc, payloadBytes, length);
+  if (error) {
+    return;
+  }
+
+  const char *targetDevice = doc["device_id"] | DEVICE_ID;
+  if (strcmp(targetDevice, DEVICE_ID) != 0) {
+    return;
+  }
+
+  bool nextLed1 = doc.containsKey("led1_expected") ? (doc["led1_expected"].as<int>() != 0) : led1Expected;
+  bool nextLed2 = doc.containsKey("led2_expected") ? (doc["led2_expected"].as<int>() != 0) : led2Expected;
+  bool nextLed3 = doc.containsKey("led3_expected") ? (doc["led3_expected"].as<int>() != 0) : led3Expected;
+
+  applyExpectedStates(nextLed1, nextLed2, nextLed3);
+
+  const char *commandId = doc["command_id"] | "";
+  publishStatus("applied", commandId);
+  publishTelemetry();
+}
+
+void mqttCallback(char *topic, byte *payload, unsigned int length) {
+  if (strcmp(topic, commandTopic) == 0) {
+    handleCommand(payload, length);
+  }
+}
+
+void syncClock() {
+  configTime(0, 0, "pool.ntp.org", "time.nist.gov", "time.google.com");
+}
+
+void connectWifi() {
+  if (WiFi.status() == WL_CONNECTED) {
+    return;
+  }
+
+  unsigned long now = millis();
+  if (now - lastWifiRetryAt < WIFI_RETRY_DELAY_MS) {
+    return;
+  }
+  lastWifiRetryAt = now;
+
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+}
+
+void connectMqtt() {
+  if (WiFi.status() != WL_CONNECTED || mqttClient.connected()) {
+    return;
+  }
+
+  unsigned long now = millis();
+  if (now - lastMqttRetryAt < MQTT_RETRY_DELAY_MS) {
+    return;
+  }
+  lastMqttRetryAt = now;
+
+  String clientId = String("streetlight-") + DEVICE_ID;
+  if (!mqttClient.connect(clientId.c_str(), MQTT_USERNAME, MQTT_PASSWORD)) {
+    return;
+  }
+
+  mqttClient.subscribe(commandTopic, 1);
+  publishStatus("online");
+  publishTelemetry();
+}
+
+void setupPins() {
+  pinMode(LED1_PIN, OUTPUT);
+  pinMode(LED2_PIN, OUTPUT);
+  pinMode(LED3_PIN, OUTPUT);
+
+  pinMode(LED1_WORKING_PIN, INPUT_PULLDOWN);
+  pinMode(LED2_WORKING_PIN, INPUT_PULLDOWN);
+  pinMode(LED3_WORKING_PIN, INPUT_PULLDOWN);
+
+  analogReadResolution(12);
+  analogSetPinAttenuation(LDR1_PIN, ADC_11db);
+  analogSetPinAttenuation(LDR2_PIN, ADC_11db);
+  analogSetPinAttenuation(LDR3_PIN, ADC_11db);
+
+  applyExpectedStates(true, true, true);
+}
+
+void setupTopics() {
+  snprintf(telemetryTopic, sizeof(telemetryTopic), "streetlight/%s/telemetry", DEVICE_ID);
+  snprintf(commandTopic, sizeof(commandTopic), "streetlight/%s/command", DEVICE_ID);
+  snprintf(statusTopic, sizeof(statusTopic), "streetlight/%s/status", DEVICE_ID);
+}
+
+void setup() {
+  Serial.begin(115200);
+  delay(200);
+
+  setupPins();
+  setupTopics();
+  syncClock();
+
+  mqttClient.setServer(MQTT_HOST, MQTT_PORT);
+  mqttClient.setCallback(mqttCallback);
+  mqttClient.setBufferSize(512);
+}
+
+void loop() {
+  connectWifi();
+
+  if (WiFi.status() == WL_CONNECTED) {
+    connectMqtt();
+  }
+
+  if (mqttClient.connected()) {
+    mqttClient.loop();
+
+    unsigned long now = millis();
+    if (now - lastTelemetryAt >= TELEMETRY_INTERVAL_MS) {
+      lastTelemetryAt = now;
+      publishTelemetry();
+    }
+  }
+}
